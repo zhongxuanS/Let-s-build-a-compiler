@@ -36,8 +36,8 @@
 ```
 编译运行:
 ```commandline
-gcc main.c -o main
-./main > test.s
+gcc generator.c -o generator
+./generator > test.s
 8
 as --32 -o test.o test.s
 ld -m elf_i386 test.o -o test
@@ -62,3 +62,7 @@ echo $?
 可以进行系统调用，eax寄存器中为调用的功能号，ebx、ecx、edx、esi等等寄存器则依次为参数。
 查看`/usr/include/asm/unistd.h`可以看出`exit`的号是1。所以这里是调用了
 `exit`函数，并且参数为8。
+
+这就是一个最简单的编译器，从输入设备读取字符串，生成汇编代码。当然离真正的编译器还差很远。
+因为目前我们关注的是词法和语法解析，也就是前端工作，后端的事情先暂时不管。饭要一口一口吃嘛。
+
