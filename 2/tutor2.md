@@ -87,28 +87,154 @@ echo $?
         abort("please input digit");
     }
 ```
-但是上面的代码有缺点，他处理不了`1+2+3`这样的场景。如果我们把`1+2+3`拆成先做`1+2`再做`3+3`的话，
-就会发现其实这就是一个递归的过程。
-
-为了更好的抽象这个过程，我们把数字用`Term`来替换，表达式用`Expr`来替换。那么`1+1`这样的形式就可以表示为`Expr = Term + Term`。但是如果是`1+2+3`这样的多位加法就不好办了。这时我们发现，必须有一个好的表达形式来表示语法。
-恭喜你，现在业内已经有不错的解决方案了---`BNF`。
-`BNF`是一种上下文无关的语法，上下文无关的意思是每一行语法都是独立的，不会和别的语法扯上关系。比如说上面的语法就可以表示为：
-```C
-Expr := Expr + Term | Term + Term
-```
-这样就解决了多位相加不好表达的问题。
-不过如果是上面的表达式来写代码的话，会出现
+下面就用真实的代码实现。
+我们把处理表达式的函数命名为`Expression`函数。在这个函数中按照上面的伪代码进行处理。
 ```c
-function expr()
+//
+// Created by szx on 2020/10/31.
+//
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "../cradle.h"
+
+void Term()
 {
-    expr();
-    expect('+');
-    term();
+    // save current value into eax
+    sprintf(tmp,"movl $%c, %%eax", GetNum());
+    EmitLn(tmp);
+}
+
+void Add()
+{
+    EmitLn("addl (%esp), %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Expression()
+{
+    Term();
+    if(IsAddop(Look))
+    {
+        EmitLn("pushl %eax");
+        Match('+');
+        Term();
+        Add();
+    }
+}
+
+int main()
+{
+    Init();
+    EmitLn(".text");
+    EmitLn(".global _start");
+    EmitLn("_start:");
+    Expression();
+
+    /* return the result */
+    EmitLn("movl %eax, %ebx");
+    EmitLn("movl $1, %eax");
+    EmitLn("int $0x80");
+    return 0;
 }
 ```
-会一直递归`expr`函数，这就是左递归问题。左递归可以被改写。这里先不探讨这个问题。
+现在我们已经可以处理`1+1`这样的表达式了。不知道大家有没有注意到，我们一直都在说四则运算，但是我们并没有定义什么样的语法才符合四则运算。这个非常关键，有点编程经验的人都知道，每个语言有自己的语法，不符合语法的话编译器会编译不过。
+那么怎么定义个语法呢？
+在编译器中一般使用`BNF`方式来定义一个语法。
+比如说`1+1`可以被表示为:
+```
+Expr := Term + Term
+Term := digit
+```
+在`BNF`中，分为终结符和非终结符，非终结符可以由终结符或其他非终结符表示，终结符一般由数字、字符构成。这里`Term`和`Expr`就是非终结符，`Term`由`digit`构成。`digit`就是一个终结符，表示数字。`Expr`由`Term`构成。
 
-[ ] 处理多个数加减
+有了`BNF`，就可以把语法定义公式化，方便大家理解。
+
+下面我们再增加减法。那么加减法的`BNF`就可以写成：
+```
+Expr := Term + Term | Term - Term
+Term := digit
+```
+只需要在上面的例子中增加几行代码就可以实现。
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "../cradle.h"
+
+void Term()
+{
+    // save current value into eax
+    sprintf(tmp,"movl $%c, %%eax", GetNum());
+    EmitLn(tmp);
+}
+
+void Add()
+{
+    Match('+');
+    Term();
+    EmitLn("addl (%esp), %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Sub()
+{
+    Match('-');
+    Term();
+    EmitLn("subl (%esp), %eax");
+    EmitLn("negl %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Expression()
+{
+    Term();
+    if(strchr("+-", Look))
+    {
+        EmitLn("pushl %eax");
+        switch (Look)
+        {
+        case '+':
+            Add();
+            break;
+        case '-':
+            Sub();
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+int main()
+{
+    Init();
+    EmitLn(".text");
+    EmitLn(".global _start");
+    EmitLn("_start:");
+    Expression();
+
+    /* return the result */
+    EmitLn("movl %eax, %ebx");
+    EmitLn("movl $1, %eax");
+    EmitLn("int $0x80");
+    return 0;
+}
+```
+但是运行`1-2`的时候发现结果不对，这是因为我们在减法的时候计算的表达式为：
+`2-1`。这是因为我们想把结果保存到`eax`寄存器里。怎么修改呢？
+只需要取负就行了。把`Sub`函数改成这样：
+```c
+void Sub()
+{
+    Match('-');
+    Term();
+    EmitLn("subl (%esp), %eax");
+    EmitLn("negl %eax");
+    EmitLn("addl $4, %esp");
+}
+```
 
 
 

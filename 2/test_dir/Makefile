@@ -1,4 +1,4 @@
-IN=generator.c
+IN=generator.c ../cradle.c
 OUT=generator
 EXE=test
 FLAGS=-Wall -Werror

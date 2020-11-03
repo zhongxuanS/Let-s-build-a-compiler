@@ -3,34 +3,65 @@
 //
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#include "../cradle.h"
+
+void Term()
+{
+    // save current value into eax
+    sprintf(tmp,"movl $%c, %%eax", GetNum());
+    EmitLn(tmp);
+}
+
+void Add()
+{
+    Match('+');
+    Term();
+    EmitLn("addl (%esp), %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Sub()
+{
+    Match('-');
+    Term();
+    EmitLn("subl (%esp), %eax");
+    EmitLn("negl %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Expression()
+{
+    Term();
+    if(strchr("+-", Look))
+    {
+        EmitLn("pushl %eax");
+        switch (Look)
+        {
+        case '+':
+            Add();
+            break;
+        case '-':
+            Sub();
+            break;
+        default:
+            break;
+        }
+    }
+}
 
 int main()
 {
-    char val;
-    scanf("%c", &val);
-
-    printf(".text\n");
-    printf(".global _start\n");
-    printf("_start:\n");
-
-    printf("movl $%c, %%eax\n", val);
-
-    scanf("%c", &val);
-
-    /* save old val */
-    printf("pushl %%eax\n");
-
-    /* save new val */
-    printf("movl $%c, %%eax\n", val);
-
-    // add value
-    printf("addl (%%esp), %%eax\n");
-
-    // restore esp
-    printf("addl $4, %%esp\n");
+    Init();
+    EmitLn(".text");
+    EmitLn(".global _start");
+    EmitLn("_start:");
+    Expression();
 
     /* return the result */
-    printf("movl %%eax, %%ebx\n");
-    printf("movl $1, %%eax\n");
-    printf("int $0x80\n");
+    EmitLn("movl %eax, %ebx");
+    EmitLn("movl $1, %eax");
+    EmitLn("int $0x80");
+    return 0;
 }
