@@ -8,7 +8,6 @@ void GetChar()
     Look = getchar();
 }
 
-
 void Error(char *s)
 {
     printf("\nError: %s.", s);

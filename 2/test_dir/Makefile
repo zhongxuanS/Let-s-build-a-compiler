@@ -3,10 +3,10 @@ OUT=generator
 EXE=test
 FLAGS=-Wall -Werror
 
-all:
+generator: generator.c ../cradle.c
 	gcc -o $(OUT) $(IN) $(FLAGS)
 
-build:
+build: generator
 	./$(OUT) > $(EXE).s
 
 run: build
@@ -14,7 +14,7 @@ run: build
 	ld -m elf_i386 $(EXE).o -o $(EXE)
 	./$(EXE)
 
-.PHONY: clean
+.PHONY: clean build run
 clean:
 	rm -f $(OUT)
 	rm -f $(EXE)*
