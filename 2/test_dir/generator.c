@@ -7,7 +7,6 @@
 
 #include "../cradle.h"
 
-
 void Term()
 {
     // save current value into eax
@@ -35,7 +34,7 @@ void Sub()
 void Expression()
 {
     Term();
-    if(strchr("+-", Look))
+    while(strchr("+-", Look))
     {
         EmitLn("pushl %eax");
         switch (Look)
