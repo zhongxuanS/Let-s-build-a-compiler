@@ -7,11 +7,47 @@
 
 #include "../cradle.h"
 
-void Term()
+void Factor()
 {
-    // save current value into eax
     sprintf(tmp,"movl $%c, %%eax", GetNum());
     EmitLn(tmp);
+}
+
+void Mul()
+{
+    Match('*');
+    Factor();
+    EmitLn("imull (%esp), %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Div()
+{
+    Match('/');
+    Factor();
+    EmitLn("imull (%esp), %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Term()
+{
+    Factor();
+    while (strstr("*/", Look))
+    {
+        EmitLn("pushl %eax");
+        switch (Look)
+        {
+        case '*':
+            Mul();
+            break;
+        case '/':
+            Div();
+            break;
+        default:
+            Expected("* or /");
+            break;
+        }
+    }
 }
 
 void Add()
@@ -46,6 +82,7 @@ void Expression()
             Sub();
             break;
         default:
+            Expected("+ or -");
             break;
         }
     }

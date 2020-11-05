@@ -152,7 +152,7 @@ Term := digit
 
 下面我们再增加减法。那么加减法的`BNF`就可以写成：
 ```
-Expr := Term + Term | Term - Term
+Expr := Term '+'|'-' Term
 Term := digit
 ```
 只需要在上面的例子中增加几行代码就可以实现。
@@ -235,6 +235,99 @@ void Sub()
     EmitLn("addl $4, %esp");
 }
 ```
+
+现在问题来了，我们要支持多位数加减怎么办？多位数加减用`BNF`表示为：
+```
+Expr := Term ['+'|'-' Term]*
+Term := digit
+```
+表示`Expr`可以只有`digit`构成，也可以由多个加减表达式构成。
+其实实现起来很简单，只要改几行代码就可以。
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "../cradle.h"
+
+void Term()
+{
+    // save current value into eax
+    sprintf(tmp,"movl $%c, %%eax", GetNum());
+    EmitLn(tmp);
+}
+
+void Add()
+{
+    Match('+');
+    Term();
+    EmitLn("addl (%esp), %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Sub()
+{
+    Match('-');
+    Term();
+    EmitLn("subl (%esp), %eax");
+    EmitLn("negl %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Expression()
+{
+    Term();
+    while(strchr("+-", Look))
+    {
+        EmitLn("pushl %eax");
+        switch (Look)
+        {
+        case '+':
+            Add();
+            break;
+        case '-':
+            Sub();
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+int main()
+{
+    Init();
+    EmitLn(".text");
+    EmitLn(".global _start");
+    EmitLn("_start:");
+    Expression();
+
+    /* return the result */
+    EmitLn("movl %eax, %ebx");
+    EmitLn("movl $1, %eax");
+    EmitLn("int $0x80");
+    return 0;
+}
+```
+四则运算除了有加减还有乘除。大家都知道乘除的优先级是高于加减的。所以在处理表达式的时候要先处理乘除。那么要怎么实现呢？
+以`1+2*3`为例。之前的逻辑是：
+```
+1. Term读取1,
+2. 发现是"+"号调用Add
+3. Add函数确认当前读取的字符串是"+"，继续调用Term读取下一个数字
+   完成加法操作
+```
+我们发现，如果在第三步的`Term`函数不再是读取一个数字，而在读取数字后判断下一个字符是不是`*/`。如果是的话，就开始计算乘除。这样就可以解决问题了。
+其实这样的思路用`BNF`来抽象就是下面的形式：
+```
+Expr := Term ['+'|'-' Term]*
+Term := Factor ['*'|'/' Factor]*
+Factor := digit
+```
+我们现增`Factor`非终结符来表示digit，扩充原来`Term`的定义。这个时候`Term`可以由加减表达式或数字构成。这是符合我们的定义的。
+那么代码要怎么实现呢？按照`Term`的定义来修改原来的`Term`函数即可。
+
+
 
 
 
