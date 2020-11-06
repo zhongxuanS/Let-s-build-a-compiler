@@ -327,6 +327,131 @@ Factor := digit
 我们现增`Factor`非终结符来表示digit，扩充原来`Term`的定义。这个时候`Term`可以由加减表达式或数字构成。这是符合我们的定义的。
 那么代码要怎么实现呢？按照`Term`的定义来修改原来的`Term`函数即可。
 
+这里注意到汇编中的有符号除法指令`idivl`，是把%edx(高32位)，%eax(低32位)，
+作为被除数，除数是作为指令的操作数给出的。商保存在%eax，余数保存在%edx。
+我们的都是单数字，所以要把%eax的值扩展成64位并把高位保存到%edx中。通过
+`cltd`指令可以实现。
+另外，除法的时候先读到的是被除数，后读到的是除数。也就是说当读取完除数后，%eax中的值是除数，下面要进行除法操作的话就不对了。
+我们可以把被除数都除数都入栈，在做除法操作之前取出对应的值放到正确的寄存器，再做除法操作。
+
+
+具体代码如下：
+```c
+//
+// Created by szx on 2020/10/31.
+//
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "../cradle.h"
+
+void Factor()
+{
+    sprintf(tmp,"movl $%c, %%eax", GetNum());
+    EmitLn(tmp);
+}
+
+void Mul()
+{
+    Match('*');
+    Factor();
+    EmitLn("imull (%esp), %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Div()
+{
+    Match('/');
+    Factor();
+    /* 
+     * for a/b, %eax = b, (%esp) = a
+     * we need switth them
+     */
+    EmitLn("movl (%esp), %edx");
+    EmitLn("addl $4, %esp");
+    EmitLn("pushl %eax");
+
+    EmitLn("movl %edx, %eax");
+    EmitLn("cltd");
+    EmitLn("idivl (%esp)");
+    EmitLn("addl $4, %esp");
+}
+
+void Term()
+{
+    Factor();
+    while (strchr("*/", Look))
+    {
+        EmitLn("pushl %eax");
+        switch (Look)
+        {
+        case '*':
+            Mul();
+            break;
+        case '/':
+            Div();
+            break;
+        default:
+            Expected("* or /");
+            break;
+        }
+    }
+}
+
+void Add()
+{
+    Match('+');
+    Term();
+    EmitLn("addl (%esp), %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Sub()
+{
+    Match('-');
+    Term();
+    EmitLn("subl (%esp), %eax");
+    EmitLn("negl %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Expression()
+{
+    Term();
+    while(strchr("+-", Look))
+    {
+        EmitLn("pushl %eax");
+        switch (Look)
+        {
+        case '+':
+            Add();
+            break;
+        case '-':
+            Sub();
+            break;
+        default:
+            Expected("+ or -");
+            break;
+        }
+    }
+}
+
+int main()
+{
+    Init();
+    EmitLn(".text");
+    EmitLn(".global _start");
+    EmitLn("_start:");
+    Expression();
+
+    /* return the result */
+    EmitLn("movl %eax, %ebx");
+    EmitLn("movl $1, %eax");
+    EmitLn("int $0x80");
+    return 0;
+}
+```
 
 
 
