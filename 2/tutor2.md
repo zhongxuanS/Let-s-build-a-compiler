@@ -452,7 +452,157 @@ int main()
     return 0;
 }
 ```
+下面我们继续完善我们的计算器，我们知道四则运算是可以支持括号来强制指定某些表达式的计算优先级的。
+比如说：`2*(3+1)`就是先计算`3+1`再计算`2*4`。
+那么这个要怎么实现呢？
+我们把括号里面的东西先拿出来看一下，发现其实括号里面就是一个`expr`，也就是说，当解析到`(`的时候，
+我们应该去解析一个`expr`。当吧`expr`解析完毕后，进行计算，得到的结果就是一个`digit`。而`digit`
+又是一个`factor`。这样的思路就出来了。
+我们把`BNF`更新一下：
+```
+Expr := Term ['+'|'-' Term]*
+Term := Factor ['*'|'/' Factor]*
+Factor := digit | (Expr)
+```
+那么代码也就顺理成章了，我们只要在`Factor`函数那边做一些处理就可以了。
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
+#include "../cradle.h"
 
+void Expression();
+
+void Factor()
+{
+    if(Look == '(')
+    {
+        Match('(');
+        Expression();
+        Match(')');
+    }
+    else
+    {
+        sprintf(tmp,"movl $%c, %%eax", GetNum());
+        EmitLn(tmp);
+    }
+    
+    
+}
+
+void Mul()
+{
+    Match('*');
+    Factor();
+    EmitLn("imull (%esp), %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Div()
+{
+    Match('/');
+    Factor();
+    EmitLn("imull (%esp), %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Term()
+{
+    Factor();
+    while (strchr("*/", Look))
+    {
+        EmitLn("pushl %eax");
+        switch (Look)
+        {
+        case '*':
+            Mul();
+            break;
+        case '/':
+            Div();
+            break;
+        default:
+            Expected("* or /");
+            break;
+        }
+    }
+}
+
+void Add()
+{
+    Match('+');
+    Term();
+    EmitLn("addl (%esp), %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Sub()
+{
+    Match('-');
+    Term();
+    EmitLn("subl (%esp), %eax");
+    EmitLn("negl %eax");
+    EmitLn("addl $4, %esp");
+}
+
+void Expression()
+{
+    Term();
+    while(strchr("+-", Look))
+    {
+        EmitLn("pushl %eax");
+        switch (Look)
+        {
+        case '+':
+            Add();
+            break;
+        case '-':
+            Sub();
+            break;
+        default:
+            Expected("+ or -");
+            break;
+        }
+    }
+}
+
+int main()
+{
+    Init();
+    EmitLn(".text");
+    EmitLn(".global _start");
+    EmitLn("_start:");
+    Expression();
+
+    /* return the result */
+    EmitLn("movl %eax, %ebx");
+    EmitLn("movl $1, %eax");
+    EmitLn("int $0x80");
+    return 0;
+}
+```
+最后，还有一种情况，那就是负数。比如说`-1+2`。这个时候就很自然了，只要在`Factor`函数中判断有无负号即可。
+```c
+void Factor()
+{
+    if(Look == '(')
+    {
+        Match('(');
+        Expression();
+        Match(')');
+    }else if(IsAddop(Look))
+    {
+        Match('-');
+        sprintf(tmp,"movl $%c, %%eax", GetNum());
+        EmitLn(tmp);
+        EmitLn("negl %eax");
+    }
+    else
+    {
+        sprintf(tmp,"movl $%c, %%eax", GetNum());
+        EmitLn(tmp);
+    }
+}
+```
 
 
